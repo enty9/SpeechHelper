@@ -4,6 +4,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}, mpsc};
 use std::{thread, process};
 use std::time::Duration;
+use whisper_rs::{WhisperContext, WhisperContextParameters};
 mod audio;
 
 fn main() {
@@ -14,6 +15,7 @@ fn main() {
    let samples_keyboard = Arc::clone(&samples);
 
    let (tx, rx) = mpsc::channel();
+
 
    let record_audio = thread::spawn(move || {
       let callback = move |event: Event| {
@@ -46,10 +48,20 @@ fn main() {
             EventType::KeyRelease(Key::MetaLeft) => {
                recording_keyboard.store(false, Ordering::Relaxed);
 
-               let samples = samples_keyboard.lock().unwrap();
+               let samples = {
+                  let samples = samples_keyboard.lock().unwrap();
 
-               println!("Запись закончена: {} samples", samples.len());
-               tx.send(samples.clone()).unwrap();
+                  println!(
+                        "Запись закончена: {} samples",
+                        samples.len()
+                  );
+
+                  samples.clone()
+               };
+
+               if tx.send(samples).is_err() {
+                  eprintln!("Поток обработки аудио завершён");
+               }
             }
 
             EventType::KeyPress(Key::Escape) => { // Временный костыль
@@ -62,20 +74,32 @@ fn main() {
       listen(callback).expect("Error");
    });
 
-   let speech = thread::spawn(move || {
-      let samples = rx.recv().unwrap();
-      let mut cursamples = Vec::<f32>::new();
-      let mut ressamples = Vec::<f32>::new();
 
-      for s in samples {
-         cursamples.push(s);
-         if cursamples.len() == 480 {
-            let res = audio::isSpeech(&cursamples);
-            if res {
-               ressamples.extend_from_slice(&cursamples);
-               println!("Yay")
+   let speech = thread::spawn(move || {
+      let ctx = WhisperContext::new_with_params(
+        "/home/enty/Projects/SpeechHelper/rsrc/src/ggml-medium-q8_0.bin",
+        WhisperContextParameters::default(),
+      ).expect("error");
+      while let Ok(samples) = rx.recv() {
+         let mut cursamples = Vec::<f32>::new();
+         let mut ressamples = Vec::<f32>::new();
+
+         for s in samples {
+            cursamples.push(s);
+            if cursamples.len() == 480 {
+               let res = audio::isSpeech(&cursamples);
+               if res {
+                  ressamples.extend_from_slice(&cursamples);
+               }
+               cursamples.clear();
             }
-            cursamples.clear();
+         }
+         if !ressamples.is_empty(){
+            println!("{}", ressamples.len());
+            let text = audio::textToSpeech(ressamples, &ctx);
+            println!("{}", text);
+         } else {
+            println!("Please say something");
          }
       }
    });

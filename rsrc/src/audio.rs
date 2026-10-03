@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::time::Duration;
 use std::thread;
 use wavekat_vad::{VoiceActivityDetector, backends::webrtc::{WebRtcVad, WebRtcVadMode}};
+use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
 
 pub fn getAudio(recording: Arc<AtomicBool>, samples: Arc<Mutex<Vec<f32>>>) -> Result<(), Box<dyn std::error::Error>> {
     let host = cpal::default_host();
@@ -11,12 +12,19 @@ pub fn getAudio(recording: Arc<AtomicBool>, samples: Arc<Mutex<Vec<f32>>>) -> Re
         .default_input_device()
         .ok_or("Микрофон не найден")?;
 
-    let config = device.default_input_config()?;
+    let default_config = device.default_input_config()?;
+
+    let config = StreamConfig {
+        channels: 1,
+        sample_rate: 16_000,
+        buffer_size: BufferSize::Default,
+    };
+
     let stream_config: cpal::StreamConfig = config.clone().into();
     let samples_clone = Arc::clone(&samples);
 
     let value = recording.clone();
-    let stream = match config.sample_format() {
+    let stream = match default_config.sample_format() {
         cpal::SampleFormat::F32 => {
             device.build_input_stream(
                 stream_config,
@@ -112,4 +120,31 @@ pub fn isSpeech(samples: &Vec<f32>) -> bool {
     } else {
         false
     }
+}
+
+pub fn textToSpeech(samples: Vec<f32>, ctx: &WhisperContext) -> String {
+    let mut state = ctx.create_state().expect("error"); 
+
+    let mut params = FullParams::new(
+        SamplingStrategy::Greedy{best_of: 5}
+    );
+
+    params.set_n_threads(8);
+    params.set_language(Some("ru"));
+    params.set_translate(false); 
+    params.set_print_progress(false);
+    params.set_print_realtime(false);
+
+    state.full(params, &samples).expect("error");
+
+    let mut text: String = String::new();
+
+    let segments = state.full_n_segments();
+
+    for num in 0..segments {
+        let segment = state.get_segment(num).unwrap();
+        text += segment.to_str().expect("error");
+    }
+
+    text
 }

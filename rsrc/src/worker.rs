@@ -1,4 +1,8 @@
-   
+
+pub fn getModel(){
+
+}
+
    /*
    let callback = |e: Event| { // Создаем каллбек который реагирует на нажатие клавищ
       match e.event_type {
