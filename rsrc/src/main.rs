@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}, mpsc};
 use std::{thread, process};
 use std::time::Duration;
 use whisper_rs::{WhisperContext, WhisperContextParameters};
+
+mod worker;
 mod audio;
 
 fn main() {
@@ -96,8 +98,11 @@ fn main() {
          }
          if !ressamples.is_empty(){
             println!("{}", ressamples.len());
-            let text = audio::textToSpeech(ressamples, &ctx);
-            println!("{}", text);
+            let text = audio::SpeechToText(ressamples, &ctx);
+            println!("{}", text.trim());7.32
+
+
+            worker::run(&text.trim());
          } else {
             println!("Please say something");
          }

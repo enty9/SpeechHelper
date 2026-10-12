@@ -5,6 +5,8 @@ use std::time::Duration;
 use std::thread;
 use wavekat_vad::{VoiceActivityDetector, backends::webrtc::{WebRtcVad, WebRtcVadMode}};
 use whisper_rs::{WhisperContext, WhisperContextParameters, FullParams, SamplingStrategy};
+use std::fs::File;
+use rodio::{Decoder, MixerDeviceSink, source::Source};
 
 pub fn getAudio(recording: Arc<AtomicBool>, samples: Arc<Mutex<Vec<f32>>>) -> Result<(), Box<dyn std::error::Error>> {
     let host = cpal::default_host();
@@ -102,8 +104,17 @@ pub fn getAudio(recording: Arc<AtomicBool>, samples: Arc<Mutex<Vec<f32>>>) -> Re
     Ok(())
 }
 
-pub fn playAudio(){
+pub fn playAudio(path: &str){
+    let handle = rodio::DeviceSinkBuilder::open_default_sink()
+        .expect("open default audio stream");
+    let player = rodio::Player::connect_new(&handle.mixer());
+    
+    let file = File::open(path).unwrap();
+    let source = Decoder::try_from(file).unwrap();
+    handle.mixer().add(source);
 
+    // Пока идет аудио нужно остановить поток Thread::sleep(std::time::Duration::from_secs(5))
+    // Код хуйни переделтать
 }
 
 pub fn isSpeech(samples: &Vec<f32>) -> bool {
@@ -122,7 +133,7 @@ pub fn isSpeech(samples: &Vec<f32>) -> bool {
     }
 }
 
-pub fn textToSpeech(samples: Vec<f32>, ctx: &WhisperContext) -> String {
+pub fn SpeechToText(samples: Vec<f32>, ctx: &WhisperContext) -> String {
     let mut state = ctx.create_state().expect("error"); 
 
     let mut params = FullParams::new(

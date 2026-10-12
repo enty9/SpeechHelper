@@ -1,19 +1,13 @@
+use std::process::Command;
+use std::collections::HashMap;
 
-pub fn getModel(){
-
+pub fn run(text: &str){
+    match text{
+        "Открыть браузер" => open_browser(),
+        _ => println!("I dont now"),
+    }
 }
 
-   /*
-   let callback = |e: Event| { // Создаем каллбек который реагирует на нажатие клавищ
-      match e.event_type {
-         EventType::KeyPress(key) => {
-            if key == Key::MetaLeft{ // Вызываем функцию по нажатию на клавишу
-               println!("Ai start");
-            }
-         }
-         _ => {}
-      }
-   };
-
-   listen(callback).expect("Error"); // Начинаем прослушивать клавиатуру с вызовым этого каллбека и отловом ошибки    
-   */ 
+pub fn open_browser(){
+    Command::new("firefox").spawn();
+}
